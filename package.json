@@ -1,0 +1,33 @@
+{
+    "author": "Ivan Gorinov",
+    "dependencies": {},
+    "keywords": [],
+    "name": "simple-classic",
+    "pebble": {
+        "displayName": "Simple Classic Watch",
+        "enableMultiJS": true,
+        "messageKeys": [],
+        "projectType": "native",
+        "resources": {
+            "media": [
+                {
+                    "file": "fonts/perfect-dos-vga.ttf",
+                    "name": "FONT_PERFECT_16",
+                    "targetPlatforms": null,
+                    "type": "font"
+                }
+            ]
+        },
+        "sdkVersion": "3",
+        "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "emery"
+        ],
+        "uuid": "443f7f12-923f-4190-90b2-d080faab51de",
+        "watchapp": {
+            "watchface": true
+        }
+    },
+    "version": "1.0.0"
+}
