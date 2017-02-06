@@ -78,29 +78,30 @@ static void back_update_proc(Layer *layer, GContext *ctx) {
 static void batt_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   GPoint center = grect_center_point(&bounds);
+  int c = g_charge.charge_percent;
   GRect charge_frame = {
 #ifdef PBL_ROUND
-    .origin = { center.x - 26, center.x + 74 },
-    .size = { 52, 8 },
+    .origin = { center.x - 21, center.x + 74 },
+    .size = { 42, 8 },
 #else
-    .origin = { center.x - 51, bounds.size.h - 8},
-    .size = { 102, 8 },
+    .origin = { center.x - 31, bounds.size.h - 8},
+    .size = { 62, 8 },
 #endif
   };
 
   GRect charge_level = {
 #ifdef PBL_ROUND
-    .origin = { center.x - 25, center.y + 75 },
-    .size = { g_charge.charge_percent / 2, 6 },
+    .origin = { center.x - 20, center.y + 75  },
+    .size = { (c / 5) * 2, 6 },
 #else
-    .origin = { center.x - 50, bounds.size.h - 7 },
-    .size = { g_charge.charge_percent, 6 },
+    .origin = { center.x - 30, bounds.size.h - 7 },
+    .size = { (c / 5) * 3, 6 },
 #endif
   };
 
-  GColor c = get_charging_color(g_charge.charge_percent);
+  GColor color = get_charging_color(g_charge.charge_percent);
   graphics_context_set_stroke_color(ctx, GColorWhite);
-  graphics_context_set_fill_color(ctx, c);
+  graphics_context_set_fill_color(ctx, color);
   graphics_fill_rect(ctx, charge_level, 0, GCornerNone);
   graphics_draw_rect(ctx, charge_frame);
 }
