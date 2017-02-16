@@ -1,5 +1,7 @@
-#include "pebble.h"
+#include <pebble.h>
+
 #include "simple_classic.h"
+#include "rotate_rectangle.h"
 
 static Window *s_window;
 static Layer *s_back_layer, *s_date_layer, *s_hand_layer, *s_batt_layer;
@@ -47,9 +49,15 @@ uint32_t minute_index(int16_t m)
 }
 
 // round fixed point number to nearest integer
-int16_t fixed_round(uint32_t a)
+int32_t fixed_round(int32_t a)
 {
-  return (int16_t)((a + TRIG_MAX_RATIO / 2) / TRIG_MAX_RATIO);
+  if (a > 0)
+    a += (1 << 15);
+
+  if (a < 0)
+    a -= (1 << 15);
+
+  return (int16_t)(a >> 16);
 }
 
 static void back_update_proc(Layer *layer, GContext *ctx) {
@@ -65,7 +73,7 @@ static void back_update_proc(Layer *layer, GContext *ctx) {
   const int32_t tick_span = 66;
 
   for (int i = 0; i < 12; i += 1) {
-    int32_t tick_angle = TRIG_MAX_ANGLE * i / 12;
+    int32_t tick_angle = minute_index(i * 30 * 60);
     GPoint tick_center = {
       .x = center.x + fixed_round(sin_lookup(tick_angle) * tick_span),
       .y = center.y - fixed_round(cos_lookup(tick_angle) * tick_span),
@@ -164,25 +172,28 @@ static void hand_update_proc(Layer *layer, GContext *ctx) {
   GPoint second_tail = { center.x - sx, center.y + sy };
 
   // hour hand
-  graphics_context_set_stroke_color(ctx, GColorBrass);
-  graphics_context_set_stroke_width(ctx, 6);
-  graphics_draw_line(ctx, hour_tail, hour_head);
-  graphics_context_set_stroke_color(ctx, GColorLimerick);
-  graphics_context_set_stroke_width(ctx, 3);
-  graphics_draw_line(ctx, hour_tail, hour_head);
+  // graphics_context_set_stroke_color(ctx, GColorBrass);
+  // graphics_context_set_stroke_width(ctx, 6);
+  // graphics_draw_line(ctx, hour_tail, hour_head);
+  // graphics_context_set_stroke_color(ctx, GColorLimerick);
+  // graphics_context_set_stroke_width(ctx, 3);
+  // graphics_draw_line(ctx, hour_tail, hour_head);
+  rotate_rectangle(ctx, GPoint(-3, -45), GPoint(3, 15), center, hour_angle, GColorPastelYellowARGB8);
 
   // minute hand
-  graphics_context_set_stroke_color(ctx, GColorPastelYellow);
-  graphics_context_set_stroke_width(ctx, 3);
-  graphics_draw_line(ctx, minute_tail, minute_head);
+  // graphics_context_set_stroke_color(ctx, GColorPastelYellow);
+  // graphics_context_set_stroke_width(ctx, 3);
+  ///graphics_draw_line(ctx, minute_tail, minute_head);
+  rotate_rectangle(ctx, GPoint(-2, -60), GPoint(2, 20), center, minute_angle, GColorWhiteARGB8);
 
   // second hand
-  graphics_context_set_fill_color(ctx, GColorRajah);
-  graphics_context_set_stroke_color(ctx, GColorRajah);
-  graphics_context_set_stroke_width(ctx, 3);
-  graphics_draw_line(ctx, second_tail, center);
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, center, second_head);
+  // graphics_context_set_fill_color(ctx, GColorRajah);
+  // graphics_context_set_stroke_color(ctx, GColorRajah);
+  // graphics_context_set_stroke_width(ctx, 3);
+  // graphics_draw_line(ctx, second_tail, center);
+  // graphics_context_set_stroke_width(ctx, 1);
+  // graphics_draw_line(ctx, center, second_head);
+  rotate_rectangle(ctx, GPoint(-1, -66), GPoint(1, 22), center, second_angle, GColorRajahARGB8);
 
   // dot in the middle
   graphics_context_set_stroke_width(ctx, 1);
@@ -195,7 +206,7 @@ static void hand_update_proc(Layer *layer, GContext *ctx) {
 }
 
 static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
-  layer_mark_dirty(window_get_root_layer(s_window));
+  layer_mark_dirty(s_hand_layer);
 }
 
 static void charge_handler(BatteryChargeState charge)
