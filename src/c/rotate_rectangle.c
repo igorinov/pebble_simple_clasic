@@ -2,6 +2,8 @@
 
 #include "rotate_rectangle.h"
 
+#define ONE 0x10000
+
 // blend two ARGB8 colors (alpha = 0 .. 65536)
 static uint8_t blend(int32_t alpha, uint8_t c0, uint8_t c1)
 {
@@ -31,7 +33,7 @@ static uint8_t blend(int32_t alpha, uint8_t c0, uint8_t c1)
   return c;
 }
 
-int rotate_rectangle(GContext *ctx, GPoint pt1, GPoint pt2, GPoint center, int32_t angle, uint8_t color)
+int rotate_rectangle(GContext *ctx, GPoint pt1, GPoint pt2, GPoint center, int32_t angle, uint8_t colorFill)
 {
   GBitmap *fb = graphics_capture_frame_buffer(ctx);
   int32_t sin_a = sin_lookup(angle);
@@ -124,16 +126,16 @@ int rotate_rectangle(GContext *ctx, GPoint pt1, GPoint pt2, GPoint center, int32
       int32_t rx = dx * cos_a + dy * sin_a;
       int32_t ry = dy * cos_a - dx * sin_a;
 
-      int32_t dx1 = rx - pt1.x * TRIG_MAX_RATIO;
-      int32_t dx2 = pt2.x  * TRIG_MAX_RATIO - rx;
-      int32_t dy1 = ry - pt1.y * TRIG_MAX_RATIO;
-      int32_t dy2 = pt2.y * TRIG_MAX_RATIO - ry;
+      int32_t dx1 = rx - pt1.x * 0x10000;
+      int32_t dx2 = pt2.x * 0x10000 - rx;
+      int32_t dy1 = ry - pt1.y * 0x10000;
+      int32_t dy2 = pt2.y * 0x10000 - ry;
 
       // Out of the rectangle area
       if (dx1 < 0 || dx2 < 0 || dy1 < 0 || dy2 < 0)
         continue;
 
-      d_min = TRIG_MAX_RATIO + 1;
+      d_min = 0x7FFFFFFF;
       if (dx1 < d_min)
         d_min = dx1;
       if (dx2 < d_min)
@@ -143,26 +145,13 @@ int rotate_rectangle(GContext *ctx, GPoint pt1, GPoint pt2, GPoint center, int32
       if (dy2 < d_min)
         d_min = dy2;
       
-      // Outline
-/*
-      if (ld >= 0) {
-        if  (ld < L)
-          c = GColorWhiteARGB8;
-        else {
-          alpha = ratio_mul(ld - L, RL);
-          c = blend(alpha, GColorWhiteARGB8, info.data[x]);
-        }
-        info.data[j] = c;
-        continue;
-      }
-*/      
-      if (d_min <= TRIG_MAX_RATIO) {
+      if (d_min < ONE) {
         // On the border
         c = info.data[j];
-        c = blend(d_min, c, color);
+        c = blend(d_min, c, colorFill);
       } else {
         // Deep inside
-        c = color;
+        c = colorFill;
       }
       info.data[j] = c;
     }

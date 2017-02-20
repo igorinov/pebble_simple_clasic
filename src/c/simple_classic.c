@@ -4,13 +4,17 @@
 #include "rotate_rectangle.h"
 
 static Window *s_window;
-static Layer *s_back_layer, *s_date_layer, *s_hand_layer, *s_batt_layer;
+static Layer *s_back_layer;
+static Layer *s_date_layer;
+static Layer *s_hand_layer;
+static Layer *s_batt_layer;
+static Layer *s_conn_layer;
 
 static char s_date_buffer[16] = "";
 static char s_wday_buffer[16] = "";
 static int g_wday = -1;
 static BatteryChargeState g_charge;
-
+static bool g_connected = false;
 static GFont s_font;
 
 static struct color_map charge_colors[] = {
@@ -68,12 +72,12 @@ static void back_update_proc(Layer *layer, GContext *ctx) {
                                    
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, layer_get_bounds(layer), 0, GCornerNone);
-  graphics_context_set_fill_color(ctx, GColorWindsorTan);
+  graphics_context_set_fill_color(ctx, GColorDarkGray);
   graphics_context_set_stroke_color(ctx, GColorWhite);
   const int32_t tick_span = 66;
 
   for (int i = 0; i < 12; i += 1) {
-    int32_t tick_angle = minute_index(i * 30 * 60);
+    int32_t tick_angle = DEG_TO_TRIGANGLE(i * 30);
     GPoint tick_center = {
       .x = center.x + fixed_round(sin_lookup(tick_angle) * tick_span),
       .y = center.y - fixed_round(cos_lookup(tick_angle) * tick_span),
@@ -81,6 +85,25 @@ static void back_update_proc(Layer *layer, GContext *ctx) {
     graphics_fill_circle(ctx, tick_center, 3);
     graphics_draw_circle(ctx, tick_center, 3);
   }
+}
+
+static void conn_update_proc(Layer *layer, GContext *ctx) {
+#ifdef PBL_ROUND
+  GRect bounds = layer_get_bounds(layer);
+  GPoint center = grect_center_point(&bounds);
+  GPoint indicator_center = GPoint(center.x + 80, center.y);
+#else
+  GPoint indicator_center = GPoint(136, 8);
+#endif
+  
+  graphics_context_set_stroke_color(ctx, GColorWhite);
+  if (g_connected)
+    graphics_context_set_fill_color(ctx, GColorChromeYellow);
+  else
+    graphics_context_set_fill_color(ctx, GColorDarkGray);
+
+    graphics_fill_circle(ctx, indicator_center, 6);
+    graphics_draw_circle(ctx, indicator_center, 6);
 }
 
 static void batt_update_proc(Layer *layer, GContext *ctx) {
@@ -115,15 +138,14 @@ static void batt_update_proc(Layer *layer, GContext *ctx) {
 }
 
 static void date_update_proc(Layer *layer, GContext *ctx) {
+#ifdef PBL_ROUND
   GRect bounds = layer_get_bounds(layer);
   GPoint center = grect_center_point(&bounds);
-
-#ifdef PBL_ROUND
   GRect date_rect = GRect(center.x - 35, center.y - 85, 64, 24);
-  GRect wday_rect = GRect(center.x + 40, center.y - 57, 32, 24);
+  GRect wday_rect = GRect(center.x + 40, center.y - 57, 48, 24);
 #else
   GRect date_rect = GRect(0, 0, 64, 24);
-  GRect wday_rect = GRect(80, 0, 64, 24);
+  GRect wday_rect = GRect(80, 0, 48, 24);
 #endif
   
   time_t now = time(NULL);
@@ -132,7 +154,7 @@ static void date_update_proc(Layer *layer, GContext *ctx) {
   strftime(s_date_buffer, sizeof(s_date_buffer), "%b %d", t);
   strftime(s_wday_buffer, sizeof(s_wday_buffer), "%a", t);
 
-  graphics_context_set_text_color(ctx, GColorMediumAquamarine);
+  graphics_context_set_text_color(ctx, GColorWhite);
   graphics_draw_text(ctx, s_date_buffer, s_font, date_rect,
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   graphics_draw_text(ctx, s_wday_buffer, s_font, wday_rect,
@@ -145,10 +167,6 @@ static void hand_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   GPoint center = grect_center_point(&bounds);
 
-  const int32_t hour_tail_length = 14;
-  const int32_t minute_tail_length = 20;
-  const int32_t second_tail_length = 22;
-
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
 
@@ -156,44 +174,15 @@ static void hand_update_proc(Layer *layer, GContext *ctx) {
   int32_t minute_angle = minute_index((t->tm_min * 60 + t->tm_sec) * 6);
   int32_t second_angle = minute_index(t->tm_sec * 360);
 
-  int16_t hx = fixed_round(sin_lookup(hour_angle) * hour_tail_length);
-  int16_t hy = fixed_round(cos_lookup(hour_angle) * (int32_t) hour_tail_length);
-  GPoint hour_head = { center.x + hx * 3, center.y - hy * 3 };
-  GPoint hour_tail = { center.x - hx, center.y + hy };
-
-  int16_t mx = fixed_round(sin_lookup(minute_angle) * (int32_t) minute_tail_length);
-  int16_t my = fixed_round(cos_lookup(minute_angle) * (int32_t) minute_tail_length);
-  GPoint minute_head = { center.x + mx * 3, center.y - my * 3 };
-  GPoint minute_tail = { center.x - mx, center.y + my };
-
-  int16_t sx = fixed_round(sin_lookup(second_angle) * (int32_t) second_tail_length);
-  int16_t sy = fixed_round(cos_lookup(second_angle) * (int32_t) second_tail_length);
-  GPoint second_head = { center.x + sx * 3, center.y - sy * 3 };
-  GPoint second_tail = { center.x - sx, center.y + sy };
-
   // hour hand
-  // graphics_context_set_stroke_color(ctx, GColorBrass);
-  // graphics_context_set_stroke_width(ctx, 6);
-  // graphics_draw_line(ctx, hour_tail, hour_head);
-  // graphics_context_set_stroke_color(ctx, GColorLimerick);
-  // graphics_context_set_stroke_width(ctx, 3);
-  // graphics_draw_line(ctx, hour_tail, hour_head);
-  rotate_rectangle(ctx, GPoint(-3, -45), GPoint(3, 15), center, hour_angle, GColorPastelYellowARGB8);
+  rotate_rectangle(ctx, GPoint(-3, -39), GPoint(3, 13), center, hour_angle, GColorRajahARGB8);
 
   // minute hand
-  // graphics_context_set_stroke_color(ctx, GColorPastelYellow);
-  // graphics_context_set_stroke_width(ctx, 3);
-  ///graphics_draw_line(ctx, minute_tail, minute_head);
   rotate_rectangle(ctx, GPoint(-2, -60), GPoint(2, 20), center, minute_angle, GColorWhiteARGB8);
 
   // second hand
-  // graphics_context_set_fill_color(ctx, GColorRajah);
-  // graphics_context_set_stroke_color(ctx, GColorRajah);
-  // graphics_context_set_stroke_width(ctx, 3);
-  // graphics_draw_line(ctx, second_tail, center);
-  // graphics_context_set_stroke_width(ctx, 1);
-  // graphics_draw_line(ctx, center, second_head);
-  rotate_rectangle(ctx, GPoint(-1, -66), GPoint(1, 22), center, second_angle, GColorRajahARGB8);
+  rotate_rectangle(ctx, GPoint(-1, -68), GPoint(1, 17), center, second_angle, GColorOrangeARGB8);
+  rotate_rectangle(ctx, GPoint(-2, 16), GPoint(2, 24), center, second_angle, GColorOrangeARGB8);
 
   // dot in the middle
   graphics_context_set_stroke_width(ctx, 1);
@@ -215,6 +204,12 @@ static void charge_handler(BatteryChargeState charge)
   layer_mark_dirty(s_batt_layer);
 }
 
+static void app_connection_handler(bool connected)
+{
+  g_connected = connected;
+  layer_mark_dirty(s_conn_layer);
+}
+
 static void window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
@@ -234,6 +229,10 @@ static void window_load(Window *window) {
   s_batt_layer = layer_create(bounds);
   layer_set_update_proc(s_batt_layer, batt_update_proc);
   layer_add_child(window_layer, s_batt_layer);
+
+  s_conn_layer = layer_create(bounds);
+  layer_set_update_proc(s_conn_layer, conn_update_proc);
+  layer_add_child(window_layer, s_conn_layer);
 }
 
 static void window_unload(Window *window) {
@@ -241,11 +240,13 @@ static void window_unload(Window *window) {
   layer_destroy(s_date_layer);
   layer_destroy(s_hand_layer);
   layer_destroy(s_batt_layer);
+  layer_destroy(s_conn_layer);
 }
 
 static void init() {
   s_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_16));
   g_charge = battery_state_service_peek();
+  g_connected = connection_service_peek_pebble_app_connection();
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = window_load,
@@ -256,6 +257,12 @@ static void init() {
   s_date_buffer[0] = '\0';
   s_wday_buffer[0] = '\0';
 
+  ConnectionHandlers connection_handlers = {
+    .pebble_app_connection_handler = app_connection_handler,
+    .pebblekit_connection_handler = NULL
+  };
+
+  connection_service_subscribe(connection_handlers);
   battery_state_service_subscribe(charge_handler);
   tick_timer_service_subscribe(SECOND_UNIT, handle_second_tick);
 }
@@ -263,6 +270,7 @@ static void init() {
 static void deinit() {
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();
+  connection_service_unsubscribe();
   window_destroy(s_window);
 }
 
